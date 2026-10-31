@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>KUPI PESONA</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#17120f;color:#f3ebe2;font-family:system-ui,sans-serif;text-align:center;padding:24px}
+.logo{width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#6f4e37,#c8963e);margin:0 auto 18px;display:grid;place-items:center;font-size:34px}
+p{color:#b8a795;max-width:340px;margin:8px auto}a{color:#e0b25a}button{margin-top:14px;background:#d9b38a;color:#1b130e;border:0;border-radius:12px;padding:12px 20px;font-weight:700;font-size:15px}</style></head>
+<body><div><div class="logo">☕</div><h1>KUPI PESONA</h1><p id="s">Menghubungkan ke server toko…</p><button id="b" hidden onclick="go()">Coba lagi</button></div>
+<script>
+// Alamat tetap: membaca server.json (diperbarui otomatis oleh PC toko saat alamat tunnel berubah),
+// memeriksa server hidup, lalu meneruskan ke halaman yang diminta (mis. /kupi/kartu → <server>/kartu).
+const base = location.pathname.replace(/^\/kupi/, "").replace(/\/index\.html$/, "") || "/";
+const want = (new URLSearchParams(location.search).get("p") || base) + location.hash;
+const s = document.getElementById("s"), b = document.getElementById("b");
+async function go() {
+  b.hidden = true; s.textContent = "Menghubungkan ke server toko…";
+  try {
+    const cfg = await fetch("server.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.json());
+    const url = String(cfg.url || "").replace(/\/$/, "");
+    if (!/^https:\/\//.test(url)) throw new Error("alamat belum tersedia");
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
+    const h = await fetch(url + "/api/health", { signal: ctl.signal, cache: "no-store" });
+    if (!h.ok) throw new Error("server belum siap");
+    location.replace(url + (want === "/" ? "/login" : want));
+  } catch (e) {
+    s.innerHTML = "Server toko belum bisa dihubungi (" + e.message + ").<br>Pastikan komputer toko menyala & terhubung internet. Mencoba lagi otomatis…";
+    b.hidden = false; setTimeout(go, 6000);
+  }
+}
+go();
+</script></body></html>
