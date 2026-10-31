@@ -11,24 +11,29 @@ p{color:#b8a795;max-width:340px;margin:8px auto}a{color:#e0b25a}button{margin-to
 const base = location.pathname.replace(/^\/kupi/, "").replace(/\/index\.html$/, "") || "/";
 const want = (new URLSearchParams(location.search).get("p") || base) + location.hash;
 const s = document.getElementById("s"), b = document.getElementById("b");
+async function readUrl(src, opt) {
+  try { const r = await fetch(src, Object.assign({ cache: "no-store" }, opt)); if (!r.ok) return null; const u = String((await r.json()).url || "").replace(/\/$/, ""); return /^https:\/\//.test(u) ? u : null; } catch { return null; }
+}
+async function healthy(url) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 10000);
+  try { const r = await fetch(url + "/api/health", { signal: ctl.signal, cache: "no-store" }); return r.ok; } catch { return false; } finally { clearTimeout(t); }
+}
 async function go() {
   b.hidden = true; s.textContent = "Menghubungkan ke server toko…";
   try {
-    // API GitHub dulu (langsung, tanpa cache CDN Pages ±10 menit); server.json sebagai cadangan
-    let cfg;
-    try { const a = await fetch("https://api.github.com/repos/Aziz-Anwar17/kupi/contents/server.json?ref=main", { cache: "no-store", headers: { Accept: "application/vnd.github.raw+json" } }); if (!a.ok) throw 0; cfg = await a.json(); }
-    catch { cfg = await fetch("server.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.json()); }
-    const url = String(cfg.url || "").replace(/\/$/, "");
-    if (!/^https:\/\//.test(url)) throw new Error("alamat belum tersedia");
-    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 10000);
-    try {
-      const h = await fetch(url + "/api/health", { signal: ctl.signal, cache: "no-store" });
-      if (!h.ok) throw new Error("server belum siap");
-    } catch (err) {
-      if (err.message === "server belum siap" || ctl.signal.aborted) throw err;
-      // server versi lama tanpa header CORS: cukup pastikan terjangkau
-      await fetch(url + "/api/health", { mode: "no-cors", cache: "no-store" });
-    }
+    // Tiga sumber sekaligus (API GitHub bisa kena batas 60/jam, CDN Pages bisa basi ±10 menit);
+    // pakai alamat pertama yang benar-benar menjawab.
+    const t = Date.now();
+    const found = await Promise.all([
+      readUrl("https://api.github.com/repos/Aziz-Anwar17/kupi/contents/server.json?ref=main", { headers: { Accept: "application/vnd.github.raw+json" } }),
+      readUrl("https://raw.githubusercontent.com/Aziz-Anwar17/kupi/main/server.json?t=" + t),
+      readUrl("server.json?t=" + t),
+    ]);
+    const urls = [...new Set(found.filter(Boolean))];
+    if (!urls.length) throw new Error("alamat belum tersedia");
+    const ok = await Promise.all(urls.map(healthy));
+    const url = urls[ok.indexOf(true)];
+    if (!url) throw new Error("server belum siap");
     location.replace(url + (want === "/" ? "/login" : want));
   } catch (e) {
     s.innerHTML = "Server toko belum bisa dihubungi (" + e.message + ").<br>Pastikan komputer toko menyala & terhubung internet. Mencoba lagi otomatis…";
