@@ -14,7 +14,10 @@ const s = document.getElementById("s"), b = document.getElementById("b");
 async function go() {
   b.hidden = true; s.textContent = "Menghubungkan ke server toko…";
   try {
-    const cfg = await fetch("server.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.json());
+    // API GitHub dulu (langsung, tanpa cache CDN Pages ±10 menit); server.json sebagai cadangan
+    let cfg;
+    try { const a = await fetch("https://api.github.com/repos/Aziz-Anwar17/kupi/contents/server.json?ref=main", { cache: "no-store", headers: { Accept: "application/vnd.github.raw+json" } }); if (!a.ok) throw 0; cfg = await a.json(); }
+    catch { cfg = await fetch("server.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.json()); }
     const url = String(cfg.url || "").replace(/\/$/, "");
     if (!/^https:\/\//.test(url)) throw new Error("alamat belum tersedia");
     const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
